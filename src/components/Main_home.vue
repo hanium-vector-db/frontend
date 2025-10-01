@@ -51,7 +51,7 @@
 
     <!-- 하단 네비게이션 -->
     <BottomNav />
-        <-- 두 내용을 합쳤습니다.
+    <!-- 기경: 추가한 FAB -->
     <ReportFAB />
   </div>
 </template>
@@ -60,8 +60,7 @@
 import { useNavigation } from '../composables/useRouter'
 import { useAppStore } from '../stores/app'
 import BottomNav from './BottomNav.vue'
-import ReportFAB from './ReportFAB.vue' // 기경: 추가
-
+import ReportFAB from './ReportFAB.vue' // 기경: 추가함
 
 const { goToCalendar, goToSideMenu } = useNavigation()
 const appStore = useAppStore()

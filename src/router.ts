@@ -17,9 +17,6 @@ import ProfileEdit from './components/ProfileEdit.vue'
 import DailyReports from './components/DailyReports.vue'
 import IntegrationsManager from './components/IntegrationsManager.vue'
 import LanguagePicker from './components/LanguagePicker.vue'
-// 기경: 아래에 새로 작성한 컴포넌트 import 수정함
-import PriceFeatureEntry from './components/price/PriceFeatureEntry.vue'
-
 
 const routes = [
   {
@@ -86,11 +83,6 @@ const routes = [
     path: '/price',
     name: 'PriceForecast',
     component: PriceForecast,
-  },
-  {
-    path: '/price-feature', // 기경: 새 라우트 추가
-    name: 'PriceFeatureEntry',
-    component: PriceFeatureEntry,
   },
   {
     path: '/finance',
