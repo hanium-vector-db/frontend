@@ -1,5 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import authService from '../services/authService'
+import * as CryptoJS from 'crypto-js'
 
 export interface UserInfo {
   fullName: string
@@ -77,23 +79,120 @@ export const useUserStore = defineStore('user', () => {
     userSettings.value.notifications = { ...userSettings.value.notifications, ...notifications }
   }
 
-  const login = (username: string, password: string) => {
-    // TODO: Implement actual authentication logic
-    console.log('Login attempt:', username)
-    isLoggedIn.value = true
-    return Promise.resolve(true)
-  }
+  const login = async (username: string, password: string) => {
+    try {
+      // 비밀번호 해싱
+      const passwordHash = CryptoJS.SHA256(password).toString()
 
-  const logout = () => {
-    isLoggedIn.value = false
-    userInfo.value = {
-      fullName: '',
-      username: '',
-      phone: '',
-      email: '',
-      avatar: ''
+      // 백엔드 API 호출
+      const response = await authService.login(username, passwordHash)
+
+      if (response.token) {
+        isLoggedIn.value = true
+        userInfo.value.username = username
+        return true
+      }
+      return false
+    } catch (error) {
+      console.error('Login failed:', error)
+      return false
     }
   }
+
+  const logout = async () => {
+    try {
+      await authService.logout()
+    } catch (error) {
+      console.error('Logout failed:', error)
+    } finally {
+      isLoggedIn.value = false
+      userInfo.value = {
+        fullName: '',
+        username: '',
+        phone: '',
+        email: '',
+        avatar: ''
+      }
+    }
+  }
+
+  // 회원가입 관련 함수들
+  const registrationId = ref<string>('')
+
+  const startRegister = async (language: string) => {
+    try {
+      // Clear any existing token before starting registration
+      localStorage.removeItem('jwt_token')
+
+      const response = await authService.startRegister(language)
+      registrationId.value = response.registrationId
+      return response
+    } catch (error) {
+      console.error('Start register failed:', error)
+      throw error
+    }
+  }
+
+  const saveConsents = async (consents: {
+    consentHealth: boolean
+    consentFinance: boolean
+    consentSocial: boolean
+    consentClp: boolean
+  }) => {
+    try {
+      await authService.saveConsents({
+        registrationId: registrationId.value,
+        ...consents
+      })
+    } catch (error) {
+      console.error('Save consents failed:', error)
+      throw error
+    }
+  }
+
+  const saveProfile = async (name: string, nickname: string) => {
+    try {
+      await authService.saveProfile({
+        registrationId: registrationId.value,
+        name,
+        nickname
+      })
+      userInfo.value.fullName = name
+      userInfo.value.username = nickname
+    } catch (error) {
+      console.error('Save profile failed:', error)
+      throw error
+    }
+  }
+
+  const finalizeRegistration = async (userid: string, password: string, issueToken: boolean = true) => {
+    try {
+      const passwordHash = CryptoJS.SHA256(password).toString()
+      const response = await authService.finalizeRegistration({
+        registrationId: registrationId.value,
+        userid,
+        passwordHash,
+        issueToken
+      })
+
+      if (response.token) {
+        isLoggedIn.value = true
+        userInfo.value.username = userid
+      }
+
+      return response
+    } catch (error) {
+      console.error('Finalize registration failed:', error)
+      throw error
+    }
+  }
+
+  // 초기화 시 토큰 확인
+  const checkAuth = () => {
+    isLoggedIn.value = authService.isAuthenticated()
+  }
+
+  checkAuth()
 
   const setLanguage = (language: string) => {
     userSettings.value.selectedLanguage = language
@@ -104,11 +203,12 @@ export const useUserStore = defineStore('user', () => {
     userInfo,
     userSettings,
     isLoggedIn,
-    
+    registrationId,
+
     // Getters
     displayName,
     isProfileComplete,
-    
+
     // Actions
     updateUserInfo,
     updateSettings,
@@ -116,6 +216,13 @@ export const useUserStore = defineStore('user', () => {
     updateNotifications,
     login,
     logout,
-    setLanguage
+    setLanguage,
+    checkAuth,
+
+    // Registration
+    startRegister,
+    saveConsents,
+    saveProfile,
+    finalizeRegistration
   }
 })

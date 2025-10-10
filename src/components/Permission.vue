@@ -15,22 +15,22 @@
         <div class="permission-item">
           <span class="icon lock"><i class="fas fa-lock"></i></span>
           <span class="label">개인 건강정보</span>
-          <input type="checkbox" checked />
+          <input type="checkbox" v-model="permissions.health" />
         </div>
         <div class="permission-item">
           <span class="icon money"><i class="fas fa-wallet"></i></span>
           <span class="label">개인 금융정보(예산/소비패턴)</span>
-          <input type="checkbox" checked />
+          <input type="checkbox" v-model="permissions.finance" />
         </div>
         <div class="permission-item">
           <span class="icon calendar"><i class="fas fa-calendar-alt"></i></span>
           <span class="label">캘린더, 위치, 프로필</span>
-          <input type="checkbox" checked />
+          <input type="checkbox" v-model="permissions.social" />
         </div>
         <div class="permission-item">
           <span class="icon facebook"><i class="fab fa-facebook"></i></span>
-          <span class="label">소셜 계정 연동</span>
-          <input type="checkbox" checked />
+          <span class="label">CLP 정보</span>
+          <input type="checkbox" v-model="permissions.clp" />
         </div>
       </div>
 
@@ -44,15 +44,26 @@
 </template>
 
 <script setup>
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useUserStore } from '../stores/user'
 
 const router = useRouter()
+const userStore = useUserStore()
+
+const permissions = ref({
+  health: true,
+  finance: true,
+  social: true,
+  clp: true
+})
 
 const goBack = () => {
   router.back()
 }
 
 const goNext = () => {
+  // 권한 설정은 체크만 가능하고 실제로 저장하지 않음
   router.push('/get_username')
 }
 </script>

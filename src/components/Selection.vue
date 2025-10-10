@@ -39,6 +39,7 @@ const userStore = useUserStore()
 const selectedLanguage = ref(userStore.userSettings.selectedLanguage)
 
 const goNext = () => {
+  // 언어 설정만 로컬에 저장
   userStore.setLanguage(selectedLanguage.value)
   goTo(ROUTES.PERMISSION)
 }

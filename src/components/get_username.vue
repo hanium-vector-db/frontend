@@ -14,7 +14,7 @@
           <div class="icon">
             <i class="fas fa-user"></i>
           </div>
-          <input type="text" placeholder="Your full name" v-model="fullName" />
+          <input type="text" placeholder="이름 (예: 홍길동)" v-model="fullName" />
         </div>
         <div v-if="getErrorsForField('fullName').length" class="error-messages">
           <span v-for="error in getErrorsForField('fullName')" :key="error" class="error">{{ error }}</span>
@@ -24,10 +24,30 @@
           <div class="icon">
             <i class="fas fa-user"></i>
           </div>
-          <input type="text" placeholder="Username" v-model="username" />
+          <input type="text" placeholder="닉네임 (예: 길동이)" v-model="nickname" />
         </div>
-        <div v-if="getErrorsForField('username').length" class="error-messages">
-          <span v-for="error in getErrorsForField('username')" :key="error" class="error">{{ error }}</span>
+        <div v-if="getErrorsForField('nickname').length" class="error-messages">
+          <span v-for="error in getErrorsForField('nickname')" :key="error" class="error">{{ error }}</span>
+        </div>
+
+        <div class="input-group">
+          <div class="icon">
+            <i class="fas fa-id-card"></i>
+          </div>
+          <input type="text" placeholder="사용자 ID (로그인용)" v-model="userid" />
+        </div>
+        <div v-if="getErrorsForField('userid').length" class="error-messages">
+          <span v-for="error in getErrorsForField('userid')" :key="error" class="error">{{ error }}</span>
+        </div>
+
+        <div class="input-group">
+          <div class="icon">
+            <i class="fas fa-lock"></i>
+          </div>
+          <input type="password" placeholder="비밀번호" v-model="password" />
+        </div>
+        <div v-if="getErrorsForField('password').length" class="error-messages">
+          <span v-for="error in getErrorsForField('password')" :key="error" class="error">{{ error }}</span>
         </div>
       </div>
 
@@ -51,24 +71,45 @@ const { goBack, goTo } = useNavigation()
 const { validateForm, getErrorsForField, hasErrors } = useValidation()
 const userStore = useUserStore()
 
-const fullName = ref(userStore.userInfo.fullName)
-const username = ref(userStore.userInfo.username)
+const fullName = ref('')
+const nickname = ref('')
+const userid = ref('')
+const password = ref('')
 
-const goNext = () => {
+const goNext = async () => {
   const isValid = validateForm({
     fullName: {
       value: fullName.value,
       rules: { required: true, minLength: 2, message: '이름을 2자 이상 입력해주세요.' }
     },
-    username: {
-      value: username.value,
-      rules: { required: true, minLength: 3, message: '사용자명을 3자 이상 입력해주세요.' }
+    nickname: {
+      value: nickname.value,
+      rules: { required: true, minLength: 2, message: '닉네임을 2자 이상 입력해주세요.' }
+    },
+    userid: {
+      value: userid.value,
+      rules: { required: true, minLength: 4, message: '사용자 ID를 4자 이상 입력해주세요.' }
+    },
+    password: {
+      value: password.value,
+      rules: { required: true, minLength: 6, message: '비밀번호를 6자 이상 입력해주세요.' }
     }
   })
 
-  if (isValid) {
-    userStore.updateUserInfo({ fullName: fullName.value, username: username.value })
+  if (!isValid) return
+
+  try {
+    // Save profile
+    await userStore.saveProfile(fullName.value, nickname.value)
+
+    // Finalize registration
+    await userStore.finalizeRegistration(userid.value, password.value, true)
+
+    // Navigate to main home
     goTo(ROUTES.MAIN_HOME)
+  } catch (error) {
+    console.error('Registration failed:', error)
+    alert('회원가입 중 오류가 발생했습니다. 다시 시도해주세요.')
   }
 }
 </script>

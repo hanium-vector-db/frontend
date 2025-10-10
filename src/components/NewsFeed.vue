@@ -3,6 +3,10 @@
     <!-- 상단 헤더 -->
     <div class="header">
       <span class="back-btn" @click="goBack">← Back</span>
+      <h2>뉴스</h2>
+      <button class="keyword-btn" @click="goToKeywordManager">
+        <i class="fas fa-tags"></i>
+      </button>
     </div>
     
     <!-- 🔼 상단 썸네일 가로 스크롤 -->
@@ -37,6 +41,10 @@
         <span><i class="far fa-comment"></i> 7 Comments</span>
         <span><i class="far fa-heart"></i> 49 Likes</span>
         <span><i class="fas fa-share-alt"></i> Share</span>
+        <button class="tts-btn" @click="readArticle(0)" :class="{ active: isReading === 0 }">
+          <i :class="isReading === 0 ? 'fas fa-stop' : 'fas fa-volume-up'"></i>
+          {{ isReading === 0 ? '중지' : '읽어주기' }}
+        </button>
       </div>
 
       <!-- 💬 댓글창 -->
@@ -64,13 +72,47 @@
 </template>
 
 <script setup>
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import BottomNav from './BottomNav.vue'
 
 const router = useRouter()
+const isReading = ref(null)
 
 const goBack = () => {
   router.go(-1)
+}
+
+const goToKeywordManager = () => {
+  router.push('/news-keyword-manager')
+}
+
+const readArticle = (articleId) => {
+  if (isReading.value === articleId) {
+    // 중지
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel()
+    }
+    isReading.value = null
+  } else {
+    // 읽기 시작
+    if (window.speechSynthesis) {
+      const text = '"거의 다 왔는데…" 20만니스 턴에서 미끄러진 SK하이닉스'
+      const utterance = new SpeechSynthesisUtterance(text)
+      utterance.lang = 'ko-KR'
+      utterance.rate = 1.0
+      utterance.pitch = 1.0
+
+      utterance.onend = () => {
+        isReading.value = null
+      }
+
+      window.speechSynthesis.speak(utterance)
+      isReading.value = articleId
+    } else {
+      alert('이 브라우저는 음성 합성을 지원하지 않습니다.')
+    }
+  }
 }
 </script>
 
@@ -89,14 +131,31 @@ const goBack = () => {
 
 .header {
   display: flex;
-  justify-content: flex-start;
+  justify-content: space-between;
+  align-items: center;
   font-size: 14px;
   margin-bottom: 1rem;
+}
+
+.header h2 {
+  font-size: 20px;
+  font-weight: 700;
 }
 
 .back-btn {
   color: #ffc107;
   cursor: pointer;
+}
+
+.keyword-btn {
+  background: #60a5fa;
+  border: none;
+  color: white;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 16px;
 }
 
 /* 썸네일 스크롤 */
@@ -175,12 +234,42 @@ const goBack = () => {
 .card-actions {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   margin-top: 0.8rem;
   font-size: 13px;
   color: #ccc;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 .card-actions i {
   margin-right: 4px;
+}
+
+.tts-btn {
+  background: #8b5cf6;
+  border: none;
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.tts-btn:hover {
+  background: #7c3aed;
+}
+
+.tts-btn.active {
+  background: #ef4444;
+}
+
+.tts-btn.active:hover {
+  background: #dc2626;
 }
 
 /* 댓글 입력창 */

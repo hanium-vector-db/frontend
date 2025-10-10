@@ -62,9 +62,21 @@ const gotoSignUp = () => {
 }
 
 const goToMainHome = async () => {
-  if (username.value && password.value) {
-    await userStore.login(username.value, password.value)
-    goTo(ROUTES.MAIN_HOME)
+  if (!username.value || !password.value) {
+    alert('아이디와 비밀번호를 입력해주세요')
+    return
+  }
+
+  try {
+    const success = await userStore.login(username.value, password.value)
+    if (success) {
+      goTo(ROUTES.MAIN_HOME)
+    } else {
+      alert('로그인에 실패했습니다. 아이디와 비밀번호를 확인해주세요.')
+    }
+  } catch (error) {
+    console.error('Login error:', error)
+    alert('로그인 중 오류가 발생했습니다.')
   }
 }
 </script>

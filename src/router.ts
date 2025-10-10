@@ -19,6 +19,17 @@ import IntegrationsManager from './components/IntegrationsManager.vue'
 import LanguagePicker from './components/LanguagePicker.vue'
 // 기경: 아래에 새로 작성한 컴포넌트 import 수정함
 import PriceFeatureEntry from './components/price/PriceFeatureEntry.vue'
+// 새로 추가된 컴포넌트들
+import QuickWidgets from './components/QuickWidgets.vue'
+import NotificationCenter from './components/NotificationCenter.vue'
+import WeatherDetail from './components/WeatherDetail.vue'
+import FinanceDetail from './components/FinanceDetail.vue'
+import NewsKeywordManager from './components/NewsKeywordManager.vue'
+import NutritionGoals from './components/NutritionGoals.vue'
+import DietPlan from './components/DietPlan.vue'
+import PurchaseGuide from './components/PurchaseGuide.vue'
+import NotificationSettings from './components/NotificationSettings.vue'
+import SecuritySettings from './components/SecuritySettings.vue'
 
 
 const routes = [
@@ -116,6 +127,56 @@ const routes = [
     path: '/language-picker',
     name: 'LanguagePicker',
     component: LanguagePicker,
+  },
+  {
+    path: '/quick-widgets',
+    name: 'QuickWidgets',
+    component: QuickWidgets,
+  },
+  {
+    path: '/notifications',
+    name: 'NotificationCenter',
+    component: NotificationCenter,
+  },
+  {
+    path: '/weather-detail',
+    name: 'WeatherDetail',
+    component: WeatherDetail,
+  },
+  {
+    path: '/finance-detail',
+    name: 'FinanceDetail',
+    component: FinanceDetail,
+  },
+  {
+    path: '/news-keyword-manager',
+    name: 'NewsKeywordManager',
+    component: NewsKeywordManager,
+  },
+  {
+    path: '/nutrition-goals',
+    name: 'NutritionGoals',
+    component: NutritionGoals,
+  },
+  {
+    path: '/diet-plan',
+    name: 'DietPlan',
+    component: DietPlan,
+  },
+  {
+    path: '/purchase-guide',
+    name: 'PurchaseGuide',
+    component: PurchaseGuide,
+  },
+  {
+    path: '/notification-settings',
+    name: 'NotificationSettings',
+    component: NotificationSettings,
+  },
+  {
+    path: '/security-settings',
+    name: 'SecuritySettings',
+    component: SecuritySettings,
   },
 ]
 

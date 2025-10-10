@@ -3,11 +3,17 @@
     <!-- 상단 헤더 -->
     <div class="header">
       <h1 class="title">홈</h1>
-      <i class="fas fa-bars menu-icon" @click="goToSideMenu"></i>
+      <div class="header-icons">
+        <div class="notification-icon" @click="goToNotifications">
+          <i class="fas fa-bell"></i>
+          <span v-if="unreadCount > 0" class="badge">{{ unreadCount }}</span>
+        </div>
+        <i class="fas fa-bars menu-icon" @click="goToSideMenu"></i>
+      </div>
     </div>
 
     <!-- 날씨 카드 -->
-    <div class="weather-card">
+    <div class="weather-card" @click="goToWeatherDetail">
       <div class="weather-left">
         <img :src="appStore.weatherInfo.icon" alt="weather" class="weather-icon" />
       </div>
@@ -36,7 +42,7 @@
     </div>
 
     <!-- 타이머 카드 -->
-    <div class="timer-card">
+    <div class="timer-card" @click="goToHealth">
       <div class="timer-header">
         <i class="fas fa-capsules pink-icon"></i>
         <span class="reminder-text">복용약 리마인더</span>
@@ -49,6 +55,9 @@
       </div>
     </div>
 
+    <!-- 퀵 위젯 추가 -->
+    <QuickWidgets />
+
     <!-- 하단 네비게이션 -->
     <BottomNav />
     <!-- 추가된 FAB -->
@@ -60,12 +69,21 @@
 import { useNavigation } from '../composables/useRouter'
 import { useAppStore } from '../stores/app'
 import BottomNav from './BottomNav.vue'
-import ReportFAB from './ReportFAB.vue'   // 기경: 추가
+import ReportFAB from './ReportFAB.vue'
+import QuickWidgets from './QuickWidgets.vue'
+import { useRouter } from 'vue-router'
+import { ref } from 'vue'
 
 const { goToCalendar, goToSideMenu } = useNavigation()
 const appStore = useAppStore()
+const router = useRouter()
 
 const week = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su']
+const unreadCount = ref(3)
+
+const goToHealth = () => router.push('/health')
+const goToNotifications = () => router.push('/notifications')
+const goToWeatherDetail = () => router.push('/weather-detail')
 </script>
 
 <style scoped>
@@ -92,6 +110,31 @@ const week = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su']
   font-size: 24px;
   font-weight: 800;
 }
+.header-icons {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.notification-icon {
+  position: relative;
+  cursor: pointer;
+  font-size: 20px;
+  transition: color 0.2s ease;
+}
+.notification-icon:hover {
+  color: #60a5fa;
+}
+.notification-icon .badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background: #ef4444;
+  color: white;
+  font-size: 10px;
+  padding: 2px 5px;
+  border-radius: 10px;
+  font-weight: 600;
+}
 .menu-icon {
   font-size: 20px;
   cursor: pointer;
@@ -109,6 +152,11 @@ const week = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su']
   display: flex;
   align-items: center;
   margin-bottom: 1.2rem;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+.weather-card:hover {
+  transform: translateY(-2px);
 }
 .weather-left {
   flex: 0 0 auto;
