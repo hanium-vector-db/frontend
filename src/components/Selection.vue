@@ -38,10 +38,15 @@ const { goBack, goTo } = useNavigation()
 const userStore = useUserStore()
 const selectedLanguage = ref(userStore.userSettings.selectedLanguage)
 
-const goNext = () => {
-  // 언어 설정만 로컬에 저장
-  userStore.setLanguage(selectedLanguage.value)
-  goTo(ROUTES.PERMISSION)
+const goNext = async () => {
+  try {
+    // Backend에 회원가입 시작 요청하여 registrationId 생성
+    await userStore.startRegister(selectedLanguage.value)
+    goTo(ROUTES.PERMISSION)
+  } catch (error) {
+    console.error('Failed to start registration:', error)
+    alert('회원가입을 시작할 수 없습니다. 다시 시도해주세요.')
+  }
 }
 </script>
 

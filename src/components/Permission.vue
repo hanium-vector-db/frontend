@@ -62,9 +62,20 @@ const goBack = () => {
   router.back()
 }
 
-const goNext = () => {
-  // 권한 설정은 체크만 가능하고 실제로 저장하지 않음
-  router.push('/get_username')
+const goNext = async () => {
+  try {
+    // Backend에 권한 동의 사항 저장
+    await userStore.saveConsents({
+      consentHealth: permissions.value.health,
+      consentFinance: permissions.value.finance,
+      consentSocial: permissions.value.social,
+      consentClp: permissions.value.clp
+    })
+    router.push('/get_username')
+  } catch (error) {
+    console.error('Failed to save consents:', error)
+    alert('권한 설정을 저장할 수 없습니다. 다시 시도해주세요.')
+  }
 }
 </script>
 
