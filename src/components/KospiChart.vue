@@ -1,12 +1,19 @@
 <template>
   <div class="kospi-chart-container">
     <div class="chart-header">
-      <div class="chart-title">
-        <h3>코스피 (KOSPI)</h3>
-        <span class="index-value" :class="priceChangeClass">
-          {{ currentPrice.toLocaleString() }}
-          <span class="change">{{ priceChangeText }}</span>
-        </span>
+      <div class="chart-title-row">
+        <div class="chart-title">
+          <h3>코스피 (KOSPI)</h3>
+          <span v-if="!isLoading" class="index-value" :class="priceChangeClass">
+            {{ currentPrice.toLocaleString() }}
+            <span class="change">{{ priceChangeText }}</span>
+          </span>
+          <span v-else class="index-value loading-text">로딩 중...</span>
+        </div>
+        <div class="market-status" :class="marketStatus.class">
+          <span class="status-dot"></span>
+          {{ marketStatus.text }}
+        </div>
       </div>
       <div class="chart-controls">
         <button
@@ -14,13 +21,20 @@
           :key="period.value"
           :class="['period-btn', { active: selectedPeriod === period.value }]"
           @click="changePeriod(period.value)"
+          :disabled="isLoading"
         >
           {{ period.label }}
         </button>
       </div>
     </div>
+    <div v-if="errorMessage" class="error-message">
+      {{ errorMessage }}
+    </div>
     <div class="chart-wrapper">
       <canvas ref="chartCanvas"></canvas>
+      <div v-if="isLoading" class="loading-overlay">
+        <div class="spinner"></div>
+      </div>
     </div>
   </div>
 </template>
@@ -39,6 +53,7 @@ import {
   Legend,
   Filler
 } from 'chart.js'
+import yahooFinanceService from '@/services/yahooFinanceService'
 
 // Chart.js 등록
 Chart.register(
@@ -57,6 +72,9 @@ const chartCanvas = ref(null)
 const selectedPeriod = ref('5m')
 const currentPrice = ref(2650.5)
 const previousClose = ref(2640.0)
+const currentTime = ref(new Date())
+const isLoading = ref(true)
+const errorMessage = ref('')
 let chart = null
 let updateInterval = null
 
@@ -76,81 +94,87 @@ const priceChangeText = computed(() => {
   return `${sign}${priceChange.value.toFixed(2)} (${sign}${priceChangePercent.value}%)`
 })
 
-// 실시간 데이터 시뮬레이션
-const generateInitialData = (period, targetCurrentPrice = null) => {
-  const labels = []
-  const data = []
-  let dataPoints = 100
-  let timeInterval = 300000 // 기본 5분 (밀리초)
-  let labelFormat = 'time'
+// 장중 여부 확인
+const isMarketOpen = computed(() => {
+  const now = currentTime.value
+  const day = now.getDay() // 0: 일요일, 1: 월요일, ..., 6: 토요일
+  const hours = now.getHours()
+  const minutes = now.getMinutes()
+  const totalMinutes = hours * 60 + minutes
 
-  switch (period) {
-    case '5m': // 5분봉
-      dataPoints = 78 // 6.5시간 (하루 장시간)
-      timeInterval = 5 * 60 * 1000 // 5분
-      labelFormat = 'time'
-      break
-    case '30m': // 30분봉
-      dataPoints = 78 // 39시간 (약 5일)
-      timeInterval = 30 * 60 * 1000 // 30분
-      labelFormat = 'datetime'
-      break
-    case '1d': // 일봉
-      dataPoints = 120 // 4개월
-      timeInterval = 24 * 60 * 60 * 1000 // 1일
-      labelFormat = 'date'
-      break
-    case '1w': // 주봉
-      dataPoints = 52 // 1년
-      timeInterval = 7 * 24 * 60 * 60 * 1000 // 1주
-      labelFormat = 'date'
-      break
-    case '1mo': // 월봉
-      dataPoints = 60 // 5년
-      timeInterval = 30 * 24 * 60 * 60 * 1000 // 1개월 (30일 기준)
-      labelFormat = 'month'
-      break
+  // 주말 체크
+  if (day === 0 || day === 6) {
+    return false
   }
 
-  const now = new Date()
+  // 평일 장중 시간: 09:00 ~ 15:30
+  const marketOpen = 9 * 60 // 09:00
+  const marketClose = 15 * 60 + 30 // 15:30
 
-  // 현재가가 주어진 경우 역으로 계산, 아니면 랜덤 생성
-  if (targetCurrentPrice !== null) {
-    // 시작가를 현재가 기준으로 역산
-    let basePrice = targetCurrentPrice - (Math.random() - 0.3) * 100
+  return totalMinutes >= marketOpen && totalMinutes < marketClose
+})
 
-    for (let i = dataPoints; i >= 0; i--) {
-      const time = new Date(now.getTime() - i * timeInterval)
-
-      // 라벨 포맷에 따라 다르게 표시
-      if (labelFormat === 'time') {
-        labels.push(time.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }))
-      } else if (labelFormat === 'datetime') {
-        labels.push(time.toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' }) + ' ' +
-                   time.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }))
-      } else if (labelFormat === 'date') {
-        labels.push(time.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' }))
-      } else if (labelFormat === 'month') {
-        labels.push(time.toLocaleDateString('ko-KR', { year: '2-digit', month: 'short' }))
-      }
-
-      if (i === 0) {
-        // 마지막 값은 정확히 현재가
-        data.push(targetCurrentPrice)
-      } else {
-        const randomChange = (Math.random() - 0.5) * 20
-        basePrice += randomChange
-        data.push(parseFloat(basePrice.toFixed(2)))
-      }
+const marketStatus = computed(() => {
+  if (isMarketOpen.value) {
+    return {
+      text: '장중',
+      class: 'market-open'
     }
   } else {
-    // 초기 로딩: 랜덤 데이터 생성
-    let basePrice = 2640.0
+    return {
+      text: '장마감',
+      class: 'market-closed'
+    }
+  }
+})
 
-    for (let i = dataPoints; i >= 0; i--) {
-      const time = new Date(now.getTime() - i * timeInterval)
+// Yahoo Finance API를 통해 실제 코스피 데이터 가져오기
+const fetchKospiData = async (period) => {
+  try {
+    isLoading.value = true
+    errorMessage.value = ''
 
-      // 라벨 포맷에 따라 다르게 표시
+    // 히스토리컬 데이터 가져오기
+    const historyData = await yahooFinanceService.getKospiHistory(period)
+
+    if (!historyData || historyData.length === 0) {
+      throw new Error('데이터를 가져올 수 없습니다')
+    }
+
+    // 현재 시세 가져오기
+    const quote = await yahooFinanceService.getKospiQuote()
+
+    if (quote) {
+      currentPrice.value = quote.regularMarketPrice
+      previousClose.value = quote.regularMarketPreviousClose
+    }
+
+    // 데이터 포맷 변환
+    const labels = []
+    const data = []
+    let labelFormat = 'time'
+
+    switch (period) {
+      case '5m':
+        labelFormat = 'time'
+        break
+      case '30m':
+        labelFormat = 'datetime'
+        break
+      case '1d':
+        labelFormat = 'date'
+        break
+      case '1w':
+        labelFormat = 'date'
+        break
+      case '1mo':
+        labelFormat = 'month'
+        break
+    }
+
+    historyData.forEach((item) => {
+      const time = new Date(item.time)
+
       if (labelFormat === 'time') {
         labels.push(time.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }))
       } else if (labelFormat === 'datetime') {
@@ -162,13 +186,19 @@ const generateInitialData = (period, targetCurrentPrice = null) => {
         labels.push(time.toLocaleDateString('ko-KR', { year: '2-digit', month: 'short' }))
       }
 
-      const randomChange = (Math.random() - 0.5) * 20
-      basePrice += randomChange
-      data.push(parseFloat(basePrice.toFixed(2)))
-    }
-  }
+      data.push(parseFloat(item.price.toFixed(2)))
+    })
 
-  return { labels, data, startPrice: data[0] }
+    isLoading.value = false
+    return { labels, data, startPrice: data[0] || previousClose.value }
+  } catch (error) {
+    console.error('Error fetching KOSPI data:', error)
+    errorMessage.value = '코스피 데이터를 가져오는 중 오류가 발생했습니다'
+    isLoading.value = false
+
+    // 오류 발생 시 빈 데이터 반환
+    return { labels: [], data: [], startPrice: 2640.0 }
+  }
 }
 
 const initChart = async () => {
@@ -181,7 +211,7 @@ const initChart = async () => {
 
   try {
     const ctx = chartCanvas.value.getContext('2d')
-    const { labels, data, startPrice } = generateInitialData(selectedPeriod.value)
+    const { labels, data, startPrice } = await fetchKospiData(selectedPeriod.value)
 
     if (chart) {
       chart.destroy()
@@ -276,21 +306,25 @@ const initChart = async () => {
     console.log('Chart initialized successfully')
   } catch (error) {
     console.error('Error initializing chart:', error)
+    errorMessage.value = '차트를 초기화하는 중 오류가 발생했습니다'
   }
 }
 
-const updateChartData = (period) => {
+const updateChartData = async (period) => {
   if (!chart) return
 
-  // 현재가를 유지하면서 데이터 재생성
-  const { labels, data, startPrice } = generateInitialData(period, currentPrice.value)
+  try {
+    const { labels, data, startPrice } = await fetchKospiData(period)
 
-  chart.data.labels = labels
-  chart.data.datasets[0].data = data
-  chart.update('none') // 애니메이션 없이 즉시 업데이트
+    chart.data.labels = labels
+    chart.data.datasets[0].data = data
+    chart.update('none') // 애니메이션 없이 즉시 업데이트
 
-  // previousClose만 업데이트 (currentPrice는 그대로 유지)
-  previousClose.value = startPrice
+    // previousClose만 업데이트 (currentPrice는 그대로 유지)
+    previousClose.value = startPrice
+  } catch (error) {
+    console.error('Error updating chart data:', error)
+  }
 }
 
 const changePeriod = (period) => {
@@ -298,26 +332,38 @@ const changePeriod = (period) => {
   updateChartData(period)
 }
 
-// 실시간 데이터 업데이트 시뮬레이션 (5분봉만)
+// 실시간 데이터 업데이트 (실제 API 호출)
 const startRealTimeUpdates = () => {
-  updateInterval = setInterval(() => {
-    if (selectedPeriod.value === '5m' && chart) {
-      const lastPrice = currentPrice.value
-      const randomChange = (Math.random() - 0.5) * 5
-      const newPrice = parseFloat((lastPrice + randomChange).toFixed(2))
+  updateInterval = setInterval(async () => {
+    // 현재 시간 업데이트 (장중/장마감 상태 확인용)
+    currentTime.value = new Date()
 
-      currentPrice.value = newPrice
+    try {
+      // 현재 시세 가져오기
+      const quote = await yahooFinanceService.getKospiQuote()
 
-      // 차트 데이터 업데이트
-      chart.data.labels.shift()
-      chart.data.labels.push(new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }))
+      if (quote && chart) {
+        const newPrice = quote.regularMarketPrice
 
-      chart.data.datasets[0].data.shift()
-      chart.data.datasets[0].data.push(newPrice)
+        currentPrice.value = newPrice
+        previousClose.value = quote.regularMarketPreviousClose
 
-      chart.update('none')
+        // 5분봉일 때만 차트에 실시간 업데이트
+        if (selectedPeriod.value === '5m') {
+          // 차트 데이터 업데이트
+          chart.data.labels.shift()
+          chart.data.labels.push(new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }))
+
+          chart.data.datasets[0].data.shift()
+          chart.data.datasets[0].data.push(newPrice)
+
+          chart.update('none')
+        }
+      }
+    } catch (error) {
+      console.error('Error updating real-time data:', error)
     }
-  }, 3000) // 3초마다 업데이트
+  }, 60000) // 60초마다 업데이트 (Yahoo Finance API rate limit 고려)
 }
 
 onMounted(async () => {
@@ -348,8 +394,15 @@ onUnmounted(() => {
   margin-bottom: 1rem;
 }
 
-.chart-title {
+.chart-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
   margin-bottom: 0.8rem;
+}
+
+.chart-title {
+  flex: 1;
 }
 
 .chart-title h3 {
@@ -357,6 +410,52 @@ onUnmounted(() => {
   font-weight: 700;
   margin: 0 0 0.5rem 0;
   color: #e5e7eb;
+}
+
+.market-status {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.8rem;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.market-status.market-open {
+  background-color: rgba(61, 213, 152, 0.15);
+  color: #3dd598;
+}
+
+.market-status.market-closed {
+  background-color: rgba(156, 163, 175, 0.15);
+  color: #9ca3af;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.market-open .status-dot {
+  background-color: #3dd598;
+}
+
+.market-closed .status-dot {
+  background-color: #9ca3af;
+  animation: none;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
 }
 
 .index-value {
@@ -411,5 +510,54 @@ onUnmounted(() => {
   position: relative;
   height: 300px;
   width: 100%;
+}
+
+.loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(30, 47, 56, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid rgba(61, 213, 152, 0.2);
+  border-top-color: #3dd598;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-text {
+  color: #9ca3af;
+  font-size: 18px;
+}
+
+.error-message {
+  background-color: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 8px;
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+  color: #ef4444;
+  font-size: 14px;
+  text-align: center;
+}
+
+.period-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 </style>

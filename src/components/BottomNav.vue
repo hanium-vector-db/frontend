@@ -36,8 +36,10 @@ const goToSettings = () => {
 .bottom-nav {
   position: fixed;
   bottom: 0;
-  left: 0;
-  width: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 390px;
+  max-width: 390px;
   background-color: #14252f;
   display: flex;
   justify-content: space-around;
@@ -46,6 +48,7 @@ const goToSettings = () => {
   border-top-left-radius: 16px;
   border-top-right-radius: 16px;
   box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.3);
+  z-index: 1000;
 }
 
 .bottom-nav i {

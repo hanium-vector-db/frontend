@@ -58,8 +58,8 @@ onMounted(() => load())
 <style scoped>
 .fab {
   position: fixed;
-  right: 16px;
-  bottom: 16px;
+  right: calc(50% - 195px + 16px);
+  bottom: 80px;
   width: 56px;
   height: 56px;
   border-radius: 50%;
@@ -74,14 +74,20 @@ onMounted(() => load())
 }
 .drawer {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 390px;
+  max-width: 390px;
+  height: 100vh;
+  max-height: 844px;
   background: rgba(0, 0, 0, 0.35);
   display: flex;
   justify-content: flex-end;
   z-index: 60;
 }
 .panel {
-  width: min(420px, 92vw);
+  width: 100%;
   height: 100%;
   background: #0b1220;
   color: #e5e7eb;

@@ -13,6 +13,82 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  background-color: #1a1a1a;
+}
+
+#app {
+  width: 390px !important;
+  max-width: 390px !important;
+  min-width: 390px !important;
+  height: 100vh !important;
+  max-height: 844px !important;
+  margin: 0 auto !important;
+  padding: 0 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  background-color: #0f1e25 !important;
+  box-shadow: 0 0 30px rgba(0, 0, 0, 0.5) !important;
+  position: relative !important;
+}
+
+/* 모든 페이지 컨테이너 크기 제한 */
+#app > * {
+  max-width: 390px !important;
+  box-sizing: border-box !important;
+}
+
+/* Fixed 요소들을 모바일 크기에 맞게 조정 */
+.modal-overlay,
+.overlay {
+  position: fixed !important;
+  max-width: 390px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+}
+
+/* Actions 버튼 (하단 고정) */
+.actions {
+  position: fixed !important;
+  width: 390px !important;
+  max-width: 390px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+}
+
+/* 스크롤바 스타일링 (선택사항) */
+#app::-webkit-scrollbar {
+  width: 6px;
+}
+
+#app::-webkit-scrollbar-track {
+  background: #0f1e25;
+}
+
+#app::-webkit-scrollbar-thumb {
+  background: #3dd598;
+  border-radius: 3px;
+}
+
+#app::-webkit-scrollbar-thumb:hover {
+  background: #2db87c;
+}
+
 a {
   font-weight: 500;
   color: #646cff;
@@ -20,14 +96,6 @@ a {
 }
 a:hover {
   color: #535bf2;
-}
-
-body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
 }
 
 h1 {
@@ -58,13 +126,6 @@ button:focus-visible {
   padding: 2em;
 }
 
-#app {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
-}
-
 @media (prefers-color-scheme: light) {
   :root {
     color: #213547;
@@ -75,5 +136,8 @@ button:focus-visible {
   }
   button {
     background-color: #f9f9f9;
+  }
+  body {
+    background-color: #e5e5e5;
   }
 }
