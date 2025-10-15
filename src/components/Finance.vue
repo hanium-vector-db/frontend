@@ -7,13 +7,8 @@
       <i class="fas fa-star star-icon"></i>
     </div>
 
-    <!-- 종목 정보 -->
-    <div class="stock-info">*SK하이닉스 263,000</div>
-
-    <!-- 📊 바 차트 카드 -->
-    <div class="card">
-      <div class="bar-chart">📊 Bar Chart Placeholder</div>
-    </div>
+    <!-- 📊 코스피 실시간 차트 -->
+    <KospiChart />
 
     <!-- 📈 예상 상승 추이 -->
     <div class="card">
@@ -114,6 +109,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import BottomNav from './BottomNav.vue'
+import KospiChart from './KospiChart.vue'
 import financeService from '../services/financeService'
 
 const router = useRouter()
@@ -220,11 +216,6 @@ const goBack = () => {
   color: gold;
 }
 
-.stock-info {
-  font-size: 14px;
-  color: #ccc;
-  margin: 0.5rem 0 1rem;
-}
 
 .card {
   background-color: #1e2f38;

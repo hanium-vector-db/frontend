@@ -81,10 +81,27 @@ export const useUserStore = defineStore('user', () => {
 
   const login = async (username: string, password: string) => {
     try {
-      // 비밀번호 해싱
-      const passwordHash = CryptoJS.SHA256(password).toString()
+      // 개발 환경 테스트용 임시 로그인 (백엔드 없이 테스트 가능)
+      const DEV_TEST_MODE = true // 백엔드 연동 시 false로 변경
 
-      // 백엔드 API 호출
+      if (DEV_TEST_MODE) {
+        // 테스트 계정: test / test123
+        if (username === 'test' && password === 'test123') {
+          isLoggedIn.value = true
+          userInfo.value.username = username
+          userInfo.value.fullName = 'Test User'
+          // 임시 토큰 저장
+          localStorage.setItem('jwt_token', 'dev_test_token_' + Date.now())
+          console.log('🧪 개발 모드: 테스트 로그인 성공')
+          return true
+        } else {
+          console.log('🧪 개발 모드: 테스트 계정 - ID: test, PW: test123')
+          return false
+        }
+      }
+
+      // 프로덕션: 백엔드 API 호출
+      const passwordHash = CryptoJS.SHA256(password).toString()
       const response = await authService.login(username, passwordHash)
 
       if (response.token) {
