@@ -11,9 +11,9 @@
       <h3>관심 키워드</h3>
       <p class="section-desc">설정한 키워드와 관련된 뉴스를 우선적으로 보여드립니다.</p>
       <div class="keyword-list">
-        <div v-for="keyword in interestedKeywords" :key="keyword.id" class="keyword-chip interested">
-          <span>{{ keyword.text }}</span>
-          <button @click="removeKeyword('interested', keyword.id)">
+        <div v-for="keyword in newsStore.interestedKeywords" :key="keyword" class="keyword-chip interested">
+          <span>{{ keyword }}</span>
+          <button @click="removeKeyword('interested', keyword)">
             <i class="fas fa-times"></i>
           </button>
         </div>
@@ -28,9 +28,9 @@
       <h3>제외 키워드</h3>
       <p class="section-desc">설정한 키워드가 포함된 뉴스는 표시되지 않습니다.</p>
       <div class="keyword-list">
-        <div v-for="keyword in excludedKeywords" :key="keyword.id" class="keyword-chip excluded">
-          <span>{{ keyword.text }}</span>
-          <button @click="removeKeyword('excluded', keyword.id)">
+        <div v-for="keyword in newsStore.excludedKeywords" :key="keyword" class="keyword-chip excluded">
+          <span>{{ keyword }}</span>
+          <button @click="removeKeyword('excluded', keyword)">
             <i class="fas fa-times"></i>
           </button>
         </div>
@@ -46,7 +46,7 @@
       <p class="section-desc">회원님의 관심사를 기반으로 추천합니다.</p>
       <div class="keyword-list">
         <div
-          v-for="keyword in recommendedKeywords"
+          v-for="keyword in newsStore.recommendedKeywords"
           :key="keyword"
           class="keyword-chip recommended"
           @click="addRecommendedKeyword(keyword)"
@@ -79,38 +79,19 @@
   </div>
 </template>
 
-<script setup>
-import { ref } from 'vue'
+<script setup lang="ts">
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useNewsStore } from '../stores/newsStore'
 
 const router = useRouter()
-
-const interestedKeywords = ref([
-  { id: 1, text: '건강' },
-  { id: 2, text: '경제' },
-  { id: 3, text: '기술' },
-  { id: 4, text: '노인복지' }
-])
-
-const excludedKeywords = ref([
-  { id: 1, text: '연예' },
-  { id: 2, text: '스포츠' }
-])
-
-const recommendedKeywords = ref([
-  '의료',
-  '재테크',
-  '연금',
-  'AI',
-  '스마트홈',
-  '실버산업'
-])
+const newsStore = useNewsStore()
 
 const showAddModal = ref(false)
-const addModalType = ref('interested')
+const addModalType = ref<'interested' | 'excluded'>('interested')
 const newKeyword = ref('')
 
-const openAddModal = (type) => {
+const openAddModal = (type: 'interested' | 'excluded') => {
   addModalType.value = type
   showAddModal.value = true
 }
@@ -120,45 +101,39 @@ const closeAddModal = () => {
   newKeyword.value = ''
 }
 
-const addKeyword = () => {
+const addKeyword = async () => {
   if (!newKeyword.value.trim()) {
     alert('키워드를 입력해주세요')
     return
   }
 
-  const targetList = addModalType.value === 'interested' ? interestedKeywords : excludedKeywords
-  const newId = Math.max(...targetList.value.map(k => k.id), 0) + 1
-
-  targetList.value.push({
-    id: newId,
-    text: newKeyword.value.trim()
-  })
+  if (addModalType.value === 'interested') {
+    await newsStore.addInterestedKeyword(newKeyword.value.trim())
+  } else {
+    newsStore.addExcludedKeyword(newKeyword.value.trim())
+  }
 
   closeAddModal()
 }
 
-const removeKeyword = (type, id) => {
-  const targetList = type === 'interested' ? interestedKeywords : excludedKeywords
-  const index = targetList.value.findIndex(k => k.id === id)
-  if (index > -1) {
-    targetList.value.splice(index, 1)
+const removeKeyword = async (type: 'interested' | 'excluded', keyword: string) => {
+  if (type === 'interested') {
+    await newsStore.removeInterestedKeyword(keyword)
+  } else {
+    newsStore.removeExcludedKeyword(keyword)
   }
 }
 
-const addRecommendedKeyword = (keyword) => {
-  const newId = Math.max(...interestedKeywords.value.map(k => k.id), 0) + 1
-  interestedKeywords.value.push({
-    id: newId,
-    text: keyword
-  })
-
-  const index = recommendedKeywords.value.indexOf(keyword)
-  if (index > -1) {
-    recommendedKeywords.value.splice(index, 1)
-  }
+const addRecommendedKeyword = async (keyword: string) => {
+  await newsStore.addRecommendedToInterested(keyword)
 }
 
 const goBack = () => router.go(-1)
+
+// 초기화: 백엔드에서 키워드 로드
+onMounted(async () => {
+  await newsStore.initialize()
+})
 </script>
 
 <style scoped>

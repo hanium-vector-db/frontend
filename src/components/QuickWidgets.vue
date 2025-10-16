@@ -23,12 +23,22 @@
       <div class="widget-header">
         <i class="fas fa-newspaper"></i>
         <span>뉴스 헤드라인</span>
+        <i class="fas fa-cog settings-icon" @click.stop="goToKeywordManager"></i>
       </div>
       <div class="widget-content">
-        <div class="news-item" v-for="item in newsHeadlines" :key="item.id">
-          <span class="news-category">[{{ item.category }}]</span>
-          <span class="news-title">{{ item.title }}</span>
-          <span class="news-time">{{ item.time }}</span>
+        <div v-if="newsHeadlines.length > 0" class="news-list">
+          <div class="news-item" v-for="item in newsHeadlines" :key="item.id">
+            <span class="news-category">[{{ item.category }}]</span>
+            <span class="news-title">{{ item.title }}</span>
+            <span class="news-time">{{ item.time }}</span>
+          </div>
+        </div>
+        <div v-else class="empty-state">
+          <i class="fas fa-inbox"></i>
+          <p>관심 키워드를 설정하면<br>맞춤 뉴스를 볼 수 있습니다</p>
+          <button @click.stop="goToKeywordManager" class="setup-btn">
+            키워드 설정하기
+          </button>
         </div>
       </div>
     </div>
@@ -50,11 +60,13 @@
   </div>
 </template>
 
-<script setup>
-import { ref } from 'vue'
+<script setup lang="ts">
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useNewsStore } from '../stores/newsStore'
 
 const router = useRouter()
+const newsStore = useNewsStore()
 
 const financeUpdates = ref([
   { name: '국민은행 정기예금', value: '3.5%', change: 0.2 },
@@ -62,11 +74,8 @@ const financeUpdates = ref([
   { name: 'KB Star 펀드', value: '+5.2%', change: 1.3 }
 ])
 
-const newsHeadlines = ref([
-  { id: 1, category: '경제', title: '금리 인하 전망, 예금 상품 재검토 필요', time: '10분 전' },
-  { id: 2, category: '건강', title: '겨울철 면역력 강화 식품 5가지', time: '30분 전' },
-  { id: 3, category: '지역', title: '서울시, 노인 복지 예산 확대', time: '1시간 전' }
-])
+// 키워드 기반 필터링된 뉴스 사용
+const newsHeadlines = computed(() => newsStore.filteredNews)
 
 const dietRecommendations = ref([
   { meal: '아침', menu: '오트밀 + 바나나', calories: 320 },
@@ -77,6 +86,12 @@ const dietRecommendations = ref([
 const goToFinance = () => router.push('/finance')
 const goToNews = () => router.push('/news')
 const goToDiet = () => router.push('/diet-plan')
+const goToKeywordManager = () => router.push('/news-keyword-manager')
+
+// 초기화: 백엔드에서 키워드와 뉴스 로드
+onMounted(async () => {
+  await newsStore.initialize()
+})
 </script>
 
 <style scoped>
@@ -116,8 +131,24 @@ const goToDiet = () => router.push('/diet-plan')
   color: white;
 }
 
+.widget-header span {
+  flex: 1;
+}
+
 .widget-header i {
   font-size: 18px;
+}
+
+.settings-icon {
+  font-size: 16px !important;
+  color: #9ca3af;
+  cursor: pointer;
+  transition: color 0.2s;
+  padding: 0.25rem;
+}
+
+.settings-icon:hover {
+  color: #60a5fa;
 }
 
 .widget-card.finance .widget-header i {
@@ -226,5 +257,44 @@ const goToDiet = () => router.push('/diet-plan')
 .meal-calories {
   font-size: 12px;
   color: #9ca3af;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem;
+  text-align: center;
+}
+
+.empty-state i {
+  font-size: 36px;
+  color: #6b7280;
+  margin-bottom: 1rem;
+}
+
+.empty-state p {
+  font-size: 13px;
+  color: #9ca3af;
+  line-height: 1.6;
+  margin-bottom: 1.5rem;
+}
+
+.setup-btn {
+  background: #60a5fa;
+  color: white;
+  border: none;
+  padding: 0.65rem 1.5rem;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.setup-btn:hover {
+  background: #3b82f6;
+  transform: scale(1.05);
 }
 </style>
