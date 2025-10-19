@@ -93,6 +93,7 @@
               :key="event.id"
               class="timeline-event"
               :class="event.color"
+              @click="openDetailModal(event)"
             >
               <strong>{{ event.title }}</strong>
               <p>{{ event.time }}</p>
@@ -102,32 +103,89 @@
       </div>
     </div>
 
-    <!-- 자연어 일정 추가 모달 -->
-    <div v-if="showAddModal" class="modal-overlay" @click="showAddModal = false">
+    <!-- 일정 추가 모달 -->
+    <div v-if="showAddModal" class="modal-overlay" @click="closeAddModal">
       <div class="modal-content" @click.stop>
         <h3>일정 추가</h3>
-        <div class="natural-language-input">
-          <label>자연어로 일정 입력</label>
+        <div class="form-group">
+          <label>제목 *</label>
           <input
             type="text"
-            v-model="naturalInput"
-            placeholder="예: 금요일 저녁 7시 강남에서 회식"
-            @keyup.enter="parseNaturalLanguage"
+            v-model="newEvent.title"
+            placeholder="일정 제목을 입력하세요"
           />
-          <button class="parse-btn" @click="parseNaturalLanguage">
-            <i class="fas fa-magic"></i> 분석하기
-          </button>
         </div>
-        <div v-if="parsedEvent" class="parsed-result">
-          <p><strong>분석 결과:</strong></p>
-          <p>제목: {{ parsedEvent.title }}</p>
-          <p>날짜: {{ parsedEvent.date }}</p>
-          <p>시간: {{ parsedEvent.time }}</p>
-          <p>장소: {{ parsedEvent.location }}</p>
+        <div class="form-group">
+          <label>날짜 *</label>
+          <input
+            type="date"
+            v-model="newEvent.date"
+          />
+        </div>
+        <div class="form-group">
+          <label>시간 *</label>
+          <input
+            type="time"
+            v-model="newEvent.time"
+          />
+        </div>
+        <div class="form-group">
+          <label>유형</label>
+          <select v-model="newEvent.type">
+            <option value="약속">약속</option>
+            <option value="병원">병원</option>
+            <option value="회의">회의</option>
+            <option value="기타">기타</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>장소</label>
+          <input
+            type="text"
+            v-model="newEvent.location"
+            placeholder="장소를 입력하세요"
+          />
+        </div>
+        <div class="form-group">
+          <label>설명</label>
+          <textarea
+            v-model="newEvent.description"
+            placeholder="일정 설명을 입력하세요"
+            rows="3"
+          ></textarea>
         </div>
         <div class="modal-actions">
-          <button class="cancel-btn" @click="showAddModal = false">취소</button>
-          <button class="save-btn" @click="saveEvent" :disabled="!parsedEvent">추가</button>
+          <button class="cancel-btn" @click="closeAddModal">취소</button>
+          <button class="save-btn" @click="saveEvent" :disabled="!newEvent.title || !newEvent.date || !newEvent.time">추가</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 일정 상세보기/삭제 모달 -->
+    <div v-if="showDetailModal" class="modal-overlay" @click="showDetailModal = false">
+      <div class="modal-content" @click.stop>
+        <h3>일정 상세</h3>
+        <div class="detail-view">
+          <div class="detail-row">
+            <strong>제목:</strong>
+            <span>{{ selectedEvent?.title }}</span>
+          </div>
+          <div class="detail-row">
+            <strong>날짜:</strong>
+            <span>{{ selectedEvent?.date }}일</span>
+          </div>
+          <div class="detail-row">
+            <strong>시간:</strong>
+            <span>{{ selectedEvent?.time }}</span>
+          </div>
+          <div class="detail-row">
+            <strong>장소:</strong>
+            <span>{{ selectedEvent?.location || '-' }}</span>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="cancel-btn" @click="showDetailModal = false">닫기</button>
+          <button class="delete-btn" @click="deleteEvent">삭제</button>
         </div>
       </div>
     </div>
@@ -161,7 +219,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import BottomNav from './BottomNav.vue'
@@ -188,10 +246,20 @@ const weekDays = ref([
 const events = ref([])
 
 const showAddModal = ref(false)
+const showDetailModal = ref(false)
 const showGoogleSyncModal = ref(false)
 const googleConnected = ref(false)
-const naturalInput = ref('')
-const parsedEvent = ref(null)
+const selectedEvent = ref(null)
+
+// 새로운 일정 폼 데이터
+const newEvent = ref({
+  title: '',
+  date: '',
+  time: '',
+  type: '약속',
+  location: '',
+  description: ''
+})
 
 // Load events from backend
 onMounted(async () => {
@@ -200,25 +268,53 @@ onMounted(async () => {
 
 const loadEvents = async () => {
   try {
-    const data = await calendarService.listEvents('primary', 50)
+    // JWT 토큰 가져오기
+    const token = localStorage.getItem('jwt_token')
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    }
+
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+    } else {
+      console.warn('⚠️ JWT 토큰이 없습니다. 빈 일정을 표시합니다.')
+      events.value = []
+      return
+    }
+
+    // 백엔드 API에서 일정 조회
+    const response = await fetch('http://localhost:8000/api/v1/calendar/events', {
+      method: 'GET',
+      headers
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const data = await response.json()
+
+    // 백엔드 데이터를 프론트엔드 형식으로 변환
     events.value = data.map(event => {
-      const startTime = new Date(event.startDateTime)
-      const date = startTime.getDate()
-      const hour = startTime.getHours()
+      const eventDate = new Date(event.event_date)
+      const date = eventDate.getDate()
+      const [hourStr, minuteStr] = (event.event_time || '00:00').split(':')
+      const hour = parseInt(hourStr)
 
       return {
-        id: event.id,
+        id: event.id || event.event_id,
         date,
         hour,
-        title: event.summary,
-        time: startTime.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
-        color: 'blue',
+        title: event.title,
+        time: event.event_time,
+        color: event.event_type === '병원' ? 'red' : event.event_type === '회의' ? 'orange' : event.event_type === '약속' ? 'green' : 'blue',
         location: event.location || ''
       }
     })
+
+    console.log('✅ 일정 데이터 로드 완료:', events.value.length, '개')
   } catch (error) {
     console.error('Failed to load events:', error)
-    // Fallback to empty events
     events.value = []
   }
 }
@@ -244,85 +340,119 @@ const getEventsForHour = (day, hour) => {
   return events.value.filter(e => e.date === day && e.hour === hour)
 }
 
-const parseNaturalLanguage = () => {
-  const input = naturalInput.value.toLowerCase()
+const openDetailModal = (event) => {
+  selectedEvent.value = event
+  showDetailModal.value = true
+}
 
-  // 간단한 자연어 파싱
-  const parsed = {
-    title: '일정',
-    date: '오늘',
-    time: '09:00',
-    location: ''
+const closeAddModal = () => {
+  showAddModal.value = false
+  // 폼 초기화
+  newEvent.value = {
+    title: '',
+    date: '',
+    time: '',
+    type: '약속',
+    location: '',
+    description: ''
   }
-
-  if (input.includes('회식')) parsed.title = '회식'
-  if (input.includes('미팅')) parsed.title = '미팅'
-  if (input.includes('병원')) parsed.title = '병원 예약'
-  if (input.includes('점심')) parsed.title = '점심 약속'
-
-  if (input.includes('강남')) parsed.location = '강남'
-  if (input.includes('서울')) parsed.location = '서울'
-
-  // Extract time
-  const timeMatch = input.match(/(\d+)시/)
-  if (timeMatch) {
-    parsed.time = `${timeMatch[1].padStart(2, '0')}:00`
-  }
-
-  parsedEvent.value = parsed
 }
 
 const saveEvent = async () => {
-  if (!parsedEvent.value) return
+  if (!newEvent.value.title || !newEvent.value.date || !newEvent.value.time) {
+    alert('제목, 날짜, 시간은 필수 항목입니다.')
+    return
+  }
 
   try {
-    const now = new Date()
-    const startDateTime = new Date(now.getFullYear(), now.getMonth(), selectedDate.value)
-    const [hour, minute] = parsedEvent.value.time.split(':')
-    startDateTime.setHours(parseInt(hour), parseInt(minute))
+    // JWT 토큰 가져오기
+    const token = localStorage.getItem('jwt_token')
+    if (!token) {
+      alert('로그인이 필요합니다.')
+      return
+    }
 
-    const endDateTime = new Date(startDateTime)
-    endDateTime.setHours(endDateTime.getHours() + 1)
-
-    await calendarService.createEvent({
-      summary: parsedEvent.value.title,
-      description: '',
-      location: parsedEvent.value.location,
-      startDateTime: startDateTime.toISOString(),
-      endDateTime: endDateTime.toISOString()
+    // 백엔드 API로 일정 추가
+    const response = await fetch('http://localhost:8000/api/v1/calendar/events', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        title: newEvent.value.title,
+        event_type: newEvent.value.type,
+        event_date: newEvent.value.date,
+        time: newEvent.value.time,
+        location: newEvent.value.location,
+        description: newEvent.value.description
+      })
     })
 
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    // 일정 목록 새로고침
     await loadEvents()
-    showAddModal.value = false
-    naturalInput.value = ''
-    parsedEvent.value = null
+
+    // 모달 닫기 및 폼 초기화
+    closeAddModal()
+
+    console.log('✅ 일정이 추가되었습니다')
   } catch (error) {
     console.error('Failed to save event:', error)
     alert('일정 추가에 실패했습니다.')
   }
 }
 
-const connectGoogle = async () => {
+const deleteEvent = async () => {
+  if (!selectedEvent.value) return
+
+  if (!confirm('이 일정을 삭제하시겠습니까?')) return
+
   try {
-    const authUrl = await calendarService.initiateGoogleOAuth()
-    window.open(authUrl, '_blank', 'width=600,height=700')
-    googleConnected.value = true
-    alert('Google Calendar 연동 창이 열렸습니다. 로그인을 완료해주세요.')
+    const token = localStorage.getItem('jwt_token')
+    if (!token) {
+      alert('로그인이 필요합니다.')
+      return
+    }
+
+    const response = await fetch(`http://localhost:8000/api/v1/calendar/events/${selectedEvent.value.id}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    // 일정 목록 새로고침
+    await loadEvents()
+
+    // 모달 닫기
+    showDetailModal.value = false
+    selectedEvent.value = null
+
+    console.log('✅ 일정이 삭제되었습니다')
   } catch (error) {
-    console.error('Failed to connect Google:', error)
-    alert('Google Calendar 연동에 실패했습니다.')
+    console.error('Failed to delete event:', error)
+    alert('일정 삭제에 실패했습니다.')
   }
 }
 
+const connectGoogle = async () => {
+  // 백엔드 API가 아직 구현되지 않음
+  alert('Google Calendar 연동 기능은 현재 개발 중입니다.')
+  console.log('⚠️ Google Calendar API 연동이 필요합니다.')
+}
+
 const disconnectGoogle = async () => {
-  try {
-    await calendarService.disconnectGoogle()
-    googleConnected.value = false
-    alert('Google Calendar 연동이 해제되었습니다.')
-  } catch (error) {
-    console.error('Failed to disconnect Google:', error)
-    alert('연동 해제에 실패했습니다.')
-  }
+  // 백엔드 API가 아직 구현되지 않음
+  googleConnected.value = false
+  alert('Google Calendar 연동이 해제되었습니다.')
 }
 
 const goBack = () => {
@@ -617,6 +747,12 @@ const goBack = () => {
   padding: 0.8rem;
   border-radius: 8px;
   border-left: 3px solid #60a5fa;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.timeline-event:hover {
+  background: #243847;
 }
 
 .timeline-event.red {
@@ -672,11 +808,12 @@ const goBack = () => {
   margin-bottom: 1.5rem;
 }
 
-.natural-language-input {
+/* 폼 그룹 스타일 */
+.form-group {
   margin-bottom: 1rem;
 }
 
-.natural-language-input label {
+.form-group label {
   display: block;
   font-size: 13px;
   font-weight: 600;
@@ -684,7 +821,9 @@ const goBack = () => {
   color: #d1d5db;
 }
 
-.natural-language-input input {
+.form-group input,
+.form-group select,
+.form-group textarea {
   width: 100%;
   background: #0f1e25;
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -692,31 +831,43 @@ const goBack = () => {
   padding: 0.8rem;
   border-radius: 8px;
   font-size: 14px;
-  margin-bottom: 0.5rem;
+  font-family: inherit;
 }
 
-.parse-btn {
-  width: 100%;
-  background: #8b5cf6;
-  border: none;
-  color: white;
-  padding: 0.7rem;
-  border-radius: 8px;
+.form-group select {
   cursor: pointer;
-  font-weight: 600;
-  font-size: 14px;
 }
 
-.parsed-result {
+.form-group textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+/* 상세보기 스타일 */
+.detail-view {
   background: #0f1e25;
   padding: 1rem;
   border-radius: 8px;
   margin-bottom: 1rem;
 }
 
-.parsed-result p {
-  font-size: 13px;
-  margin-bottom: 0.3rem;
+.detail-row {
+  display: flex;
+  gap: 0.8rem;
+  margin-bottom: 0.8rem;
+  font-size: 14px;
+}
+
+.detail-row:last-child {
+  margin-bottom: 0;
+}
+
+.detail-row strong {
+  min-width: 60px;
+  color: #9ca3af;
+}
+
+.detail-row span {
   color: #d1d5db;
 }
 
@@ -782,6 +933,18 @@ const goBack = () => {
 }
 
 .disconnect-btn {
+  background: #ef4444;
+  color: white;
+}
+
+.delete-btn {
+  flex: 1;
+  padding: 0.7rem;
+  border-radius: 8px;
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 14px;
   background: #ef4444;
   color: white;
 }
