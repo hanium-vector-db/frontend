@@ -61,18 +61,21 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useNewsStore } from '../stores/newsStore'
+import yahooFinanceService from '@/services/yahooFinanceService'
 
 const router = useRouter()
 const newsStore = useNewsStore()
 
 const financeUpdates = ref([
   { name: '국민은행 정기예금', value: '3.5%', change: 0.2 },
-  { name: 'KOSPI', value: '2,580', change: -0.5 },
+  { name: 'KOSPI', value: '로딩 중...', change: 0 },
   { name: 'KB Star 펀드', value: '+5.2%', change: 1.3 }
 ])
+
+let kospiUpdateInterval = null
 
 // 키워드 기반 필터링된 뉴스 사용
 const newsHeadlines = computed(() => newsStore.filteredNews)
@@ -88,9 +91,52 @@ const goToNews = () => router.push('/news')
 const goToDiet = () => router.push('/diet-plan')
 const goToKeywordManager = () => router.push('/news-keyword-manager')
 
+// 코스피 데이터 가져오기
+const fetchKospiData = async () => {
+  try {
+    const quote = await yahooFinanceService.getKospiQuote()
+
+    if (quote) {
+      const currentPrice = quote.regularMarketPrice
+      const previousClose = quote.regularMarketPreviousClose
+      const priceChange = currentPrice - previousClose
+      const priceChangePercent = ((priceChange / previousClose) * 100).toFixed(2)
+
+      // KOSPI 항목 업데이트
+      financeUpdates.value[1] = {
+        name: 'KOSPI',
+        value: currentPrice.toLocaleString(),
+        change: parseFloat(priceChangePercent)
+      }
+    }
+  } catch (error) {
+    console.error('코스피 데이터 가져오기 실패:', error)
+    financeUpdates.value[1] = {
+      name: 'KOSPI',
+      value: '데이터 없음',
+      change: 0
+    }
+  }
+}
+
 // 초기화: 백엔드에서 키워드와 뉴스 로드
 onMounted(async () => {
   await newsStore.initialize()
+
+  // 코스피 데이터 즉시 가져오기
+  await fetchKospiData()
+
+  // 60초마다 코스피 데이터 업데이트
+  kospiUpdateInterval = setInterval(async () => {
+    await fetchKospiData()
+  }, 60000)
+})
+
+// 컴포넌트 언마운트 시 인터벌 정리
+onUnmounted(() => {
+  if (kospiUpdateInterval) {
+    clearInterval(kospiUpdateInterval)
+  }
 })
 </script>
 

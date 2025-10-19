@@ -1,7 +1,7 @@
 import axios from 'axios'
 import type { AxiosInstance, AxiosError } from 'axios'
 
-const API_BASE_URL = 'http://localhost:8000'
+const API_BASE_URL = 'http://localhost:8000/api/v1'
 
 // Axios 인스턴스 생성
 const apiClient: AxiosInstance = axios.create({

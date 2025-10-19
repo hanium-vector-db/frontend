@@ -17,6 +17,11 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/yahoo/, ''),
         secure: false
+      },
+      '/api/v1': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+        secure: false
       }
     }
   }

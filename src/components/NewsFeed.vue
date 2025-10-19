@@ -146,7 +146,7 @@ const newsArticles = ref([])
 const isLoading = ref(false)
 const selectedArticle = ref(null)
 
-const API_BASE_URL = 'http://localhost:8000/api/news'
+const API_BASE_URL = 'http://localhost:8000/api/v1/news-rss'
 
 // 사용자 키워드 가져오기
 const fetchUserKeywords = async () => {
@@ -254,7 +254,14 @@ const formatDate = (dateString) => {
 
 // 이미지 로드 실패 처리
 const onImageError = (event) => {
-  event.target.src = 'https://via.placeholder.com/400x300?text=No+Image'
+  // 회색 배경의 데이터 URI 이미지로 대체
+  event.target.style.display = 'none'
+  event.target.parentElement.style.backgroundColor = '#2e3c46'
+  event.target.parentElement.style.display = 'flex'
+  event.target.parentElement.style.alignItems = 'center'
+  event.target.parentElement.style.justifyContent = 'center'
+  event.target.parentElement.style.minHeight = '200px'
+  event.target.parentElement.innerHTML = '<i class="fas fa-image" style="font-size: 48px; color: #6b7280; opacity: 0.5;"></i>'
 }
 
 // TTS 읽어주기

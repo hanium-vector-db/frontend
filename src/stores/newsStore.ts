@@ -20,7 +20,7 @@ export interface NewsItem {
   image_url?: string
 }
 
-const API_BASE_URL = 'http://localhost:8000/api/news'
+const API_BASE_URL = 'http://localhost:8000/api/v1/news-rss'
 
 export const useNewsStore = defineStore('news', () => {
   // 관심 키워드 (백엔드 API에서 가져옴)

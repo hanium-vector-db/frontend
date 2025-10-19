@@ -28,11 +28,36 @@
 
         <!-- 인식된 텍스트 표시 영역 -->
         <div class="recognized-text">
+          <div class="section-label">🎤 인식된 음성:</div>
           <div v-if="recognizedText" class="text-content">
             {{ recognizedText }}
           </div>
           <div v-else class="text-placeholder">
             말씀해주세요...
+          </div>
+        </div>
+
+        <!-- LLM 응답 표시 영역 -->
+        <div v-if="isProcessing || llmResponse" class="llm-response">
+          <div class="section-label">🤖 AI 응답:</div>
+          <div class="response-content">
+            <div v-if="isProcessing && !llmResponse" class="loading-dots">
+              <span></span><span></span><span></span>
+            </div>
+            <div v-else class="text-content">
+              <template v-for="(part, index) in parseResponseParts(llmResponse)" :key="index">
+                <div v-if="part.type === 'text'" v-html="formatMarkdown(part.content)" class="markdown-content"></div>
+                <button
+                  v-else-if="part.type === 'link'"
+                  class="page-link-btn"
+                  @click="navigateToPage(part.path)"
+                >
+                  <i class="fas fa-external-link-alt"></i>
+                  {{ part.description }}
+                </button>
+              </template>
+              <span v-if="isProcessing" class="typing-cursor">▋</span>
+            </div>
           </div>
         </div>
 
@@ -66,11 +91,16 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
+import axios from 'axios'
 
 const router = useRouter()
 const isListening = ref(false)
 const recognizedText = ref('')
+const llmResponse = ref('')
+const isProcessing = ref(false)
 const waveHeights = ref<number[]>(Array(30).fill(15))
+
+const API_BASE_URL = 'http://localhost:8000/api/v1'
 
 // Web Audio API 변수
 let audioContext: AudioContext | null = null
@@ -81,6 +111,116 @@ let mediaStream: MediaStream | null = null
 
 // Web Speech API 변수
 let recognition: any = null
+
+// LLM에 텍스트 전송 (스트리밍 + 툴콜링)
+const sendToLLM = async (text: string) => {
+  if (isProcessing.value) return
+
+  isProcessing.value = true
+  llmResponse.value = ''
+
+  try {
+    console.log('🤖 LLM에 요청 전송 (툴콜링 스트리밍):', text)
+
+    // JWT 토큰 가져오기
+    const token = localStorage.getItem('jwt_token')
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    }
+
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+      console.log('✅ JWT 토큰 추가됨')
+    } else {
+      console.warn('⚠️ JWT 토큰이 없습니다')
+    }
+
+    const response = await fetch(`${API_BASE_URL}/chat-with-tools`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        message: text,
+        stream: true
+      })
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const reader = response.body?.getReader()
+    const decoder = new TextDecoder()
+
+    if (!reader) {
+      throw new Error('Response body reader is null')
+    }
+
+    let fullResponse = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+
+      if (done) {
+        console.log('✅ 스트리밍 완료')
+        break
+      }
+
+      const chunk = decoder.decode(value, { stream: true })
+      const lines = chunk.split('\n')
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const data = line.slice(6) // 'data: ' 제거
+
+          if (data.trim()) {
+            try {
+              const parsed = JSON.parse(data)
+
+              if (parsed.done) {
+                console.log('✅ LLM 응답 완료:', fullResponse)
+                break
+              }
+
+              if (parsed.content) {
+                fullResponse += parsed.content
+                llmResponse.value = fullResponse
+              }
+            } catch (e) {
+              console.warn('JSON 파싱 실패:', data)
+            }
+          }
+        }
+      }
+    }
+
+    // 음성으로 응답 재생 (선택사항)
+    // await playTTSResponse(fullResponse)
+  } catch (error) {
+    console.error('❌ LLM 요청 실패:', error)
+    llmResponse.value = 'AI 응답을 가져오는데 실패했습니다.'
+  } finally {
+    isProcessing.value = false
+  }
+}
+
+// TTS로 응답 재생 (선택사항)
+const playTTSResponse = async (text: string) => {
+  try {
+    const response = await axios.post(`${API_BASE_URL}/speech/text-to-speech`, {
+      text: text,
+      language: 'ko',
+      slow: false
+    }, {
+      responseType: 'blob'
+    })
+
+    const audioUrl = URL.createObjectURL(response.data)
+    const audio = new Audio(audioUrl)
+    audio.play()
+  } catch (error) {
+    console.error('TTS 재생 실패:', error)
+  }
+}
 
 // 파형 바 스타일 생성
 const getWaveBarStyle = (index: number) => {
@@ -160,7 +300,7 @@ const startSpeechRecognition = () => {
   recognition.continuous = true
   recognition.interimResults = true
 
-  recognition.onresult = (event: any) => {
+  recognition.onresult = async (event: any) => {
     let interimTranscript = ''
     let finalTranscript = ''
 
@@ -174,6 +314,11 @@ const startSpeechRecognition = () => {
     }
 
     recognizedText.value = finalTranscript + interimTranscript
+
+    // 최종 결과가 있으면 LLM에 전송
+    if (finalTranscript.trim()) {
+      await sendToLLM(finalTranscript.trim())
+    }
   }
 
   recognition.onerror = (event: any) => {
@@ -254,6 +399,11 @@ const stopListening = () => {
     stopAudioAnalysis()
     stopSpeechRecognition()
 
+    // 상태 초기화
+    recognizedText.value = ''
+    llmResponse.value = ''
+    isProcessing.value = false
+
     console.log('🛑 음성 인식 중단됨')
   }
 }
@@ -280,6 +430,125 @@ const goToFinance = () => {
 
 const goToHome = () => {
   router.push('/main_home')
+}
+
+// 페이지로 이동
+const navigateToPage = (path: string) => {
+  router.push(path)
+}
+
+// 마크다운 포맷팅 함수
+const formatMarkdown = (text: string): string => {
+  if (!text) return ''
+
+  let html = text
+
+  // 코드 블록 (```) - 먼저 처리
+  html = html.replace(/```([\s\S]*?)```/g, '<pre class="code-block"><code>$1</code></pre>')
+
+  // 인라인 코드 (`)
+  html = html.replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>')
+
+  // 볼드 (**text** or __text__)
+  html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+  html = html.replace(/__([^_]+)__/g, '<strong>$1</strong>')
+
+  // 이탤릭 (*text* or _text_)
+  html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>')
+  html = html.replace(/_([^_]+)_/g, '<em>$1</em>')
+
+  // 헤딩 (### Heading)
+  html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>')
+  html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>')
+  html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>')
+
+  // 리스트 항목
+  const lines = html.split('\n')
+  let inList = false
+  let listType = ''
+  const processedLines: string[] = []
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    const unorderedMatch = line.match(/^[-*+]\s+(.+)$/)
+    const orderedMatch = line.match(/^\d+\.\s+(.+)$/)
+
+    if (unorderedMatch) {
+      if (!inList || listType !== 'ul') {
+        if (inList) processedLines.push(`</${listType}>`)
+        processedLines.push('<ul class="markdown-list">')
+        inList = true
+        listType = 'ul'
+      }
+      processedLines.push(`<li>${unorderedMatch[1]}</li>`)
+    } else if (orderedMatch) {
+      if (!inList || listType !== 'ol') {
+        if (inList) processedLines.push(`</${listType}>`)
+        processedLines.push('<ol class="markdown-list">')
+        inList = true
+        listType = 'ol'
+      }
+      processedLines.push(`<li>${orderedMatch[1]}</li>`)
+    } else {
+      if (inList) {
+        processedLines.push(`</${listType}>`)
+        inList = false
+        listType = ''
+      }
+      processedLines.push(line)
+    }
+  }
+
+  if (inList) {
+    processedLines.push(`</${listType}>`)
+  }
+
+  html = processedLines.join('\n')
+
+  // 줄바꿈을 <br>로 변환 (리스트와 헤딩 제외)
+  html = html.replace(/\n(?!<[uo]l|<\/[uo]l|<li|<\/li|<h[1-3]|<\/h[1-3])/g, '<br>')
+
+  return html
+}
+
+// 응답을 텍스트와 링크로 파싱
+const parseResponseParts = (text: string) => {
+  if (!text) return []
+
+  const parts: Array<{ type: string; content?: string; path?: string; description?: string }> = []
+  const linkPattern = /\[PAGE:(\/[^:]+):([^\]]+)\]/g
+
+  let lastIndex = 0
+  let match
+
+  while ((match = linkPattern.exec(text)) !== null) {
+    // 링크 이전의 텍스트 추가
+    if (match.index > lastIndex) {
+      parts.push({
+        type: 'text',
+        content: text.substring(lastIndex, match.index)
+      })
+    }
+
+    // 링크 추가
+    parts.push({
+      type: 'link',
+      path: match[1],
+      description: match[2]
+    })
+
+    lastIndex = match.index + match[0].length
+  }
+
+  // 남은 텍스트 추가
+  if (lastIndex < text.length) {
+    parts.push({
+      type: 'text',
+      content: text.substring(lastIndex)
+    })
+  }
+
+  return parts
 }
 </script>
 
@@ -451,11 +720,14 @@ const goToHome = () => {
   background: rgba(255, 255, 255, 0.05);
   border-radius: 12px;
   padding: 1rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
   margin-top: 0.5rem;
+}
+
+.section-label {
+  font-size: 12px;
+  color: #9ca3af;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
 }
 
 .text-content {
@@ -468,6 +740,72 @@ const goToHome = () => {
   font-size: 14px;
   color: #6b7280;
   font-style: italic;
+  text-align: center;
+}
+
+/* LLM 응답 영역 */
+.llm-response {
+  width: 100%;
+  min-height: 80px;
+  background: rgba(61, 213, 152, 0.1);
+  border: 1px solid rgba(61, 213, 152, 0.3);
+  border-radius: 12px;
+  padding: 1rem;
+  margin-top: 0.75rem;
+}
+
+.response-content {
+  min-height: 40px;
+}
+
+/* 로딩 애니메이션 */
+.loading-dots {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 1rem 0;
+}
+
+.loading-dots span {
+  width: 8px;
+  height: 8px;
+  background: #3dd598;
+  border-radius: 50%;
+  animation: bounce 1.4s infinite ease-in-out both;
+}
+
+.loading-dots span:nth-child(1) {
+  animation-delay: -0.32s;
+}
+
+.loading-dots span:nth-child(2) {
+  animation-delay: -0.16s;
+}
+
+@keyframes bounce {
+  0%, 80%, 100% {
+    transform: scale(0);
+  }
+  40% {
+    transform: scale(1);
+  }
+}
+
+/* 타이핑 커서 애니메이션 */
+.typing-cursor {
+  display: inline-block;
+  margin-left: 2px;
+  color: #3dd598;
+  animation: blink 1s infinite;
+}
+
+@keyframes blink {
+  0%, 49% {
+    opacity: 1;
+  }
+  50%, 100% {
+    opacity: 0;
+  }
 }
 
 /* 중단 버튼 */
@@ -592,5 +930,146 @@ const goToHome = () => {
   background-color: #60a5fa;
   right: 8%;
   top: 35%;
+}
+
+/* 페이지 링크 버튼 */
+.page-link-btn {
+  background: linear-gradient(135deg, #3dd598, #2db87c);
+  color: #0f1e25;
+  border: none;
+  padding: 0.6rem 1.2rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  margin: 0.3rem 0.2rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(61, 213, 152, 0.3);
+}
+
+.page-link-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(61, 213, 152, 0.4);
+}
+
+.page-link-btn:active {
+  transform: translateY(0);
+}
+
+.page-link-btn i {
+  font-size: 11px;
+}
+
+/* 마크다운 스타일 */
+.markdown-content {
+  line-height: 1.8;
+  color: #e5e7eb;
+}
+
+.markdown-content strong {
+  font-weight: 700;
+  color: #3dd598;
+}
+
+.markdown-content em {
+  font-style: italic;
+  color: #60a5fa;
+}
+
+.markdown-content h1 {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 1rem 0 0.8rem 0;
+  color: #3dd598;
+  border-bottom: 2px solid rgba(61, 213, 152, 0.3);
+  padding-bottom: 0.5rem;
+}
+
+.markdown-content h2 {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0.8rem 0 0.6rem 0;
+  color: #3dd598;
+}
+
+.markdown-content h3 {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0.6rem 0 0.4rem 0;
+  color: #60a5fa;
+}
+
+.markdown-content :deep(.markdown-list) {
+  margin: 0.8rem 0;
+  padding-left: 1.5rem;
+}
+
+.markdown-content :deep(.markdown-list li) {
+  margin: 0.4rem 0;
+  line-height: 1.6;
+  position: relative;
+}
+
+.markdown-content :deep(ul.markdown-list li) {
+  list-style-type: none;
+}
+
+.markdown-content :deep(ul.markdown-list li::before) {
+  content: '•';
+  color: #3dd598;
+  font-weight: 700;
+  font-size: 18px;
+  position: absolute;
+  left: -1.2rem;
+}
+
+.markdown-content :deep(ol.markdown-list) {
+  counter-reset: item;
+  list-style-type: none;
+  padding-left: 1.5rem;
+}
+
+.markdown-content :deep(ol.markdown-list li) {
+  counter-increment: item;
+  list-style-type: none;
+}
+
+.markdown-content :deep(ol.markdown-list li::before) {
+  content: counter(item) '.';
+  color: #60a5fa;
+  font-weight: 700;
+  position: absolute;
+  left: -1.5rem;
+}
+
+.markdown-content :deep(.code-block) {
+  background: #1a2a35;
+  border: 1px solid rgba(61, 213, 152, 0.2);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 0.8rem 0;
+  overflow-x: auto;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.markdown-content :deep(.code-block code) {
+  color: #3dd598;
+  background: transparent;
+  padding: 0;
+}
+
+.markdown-content :deep(.inline-code) {
+  background: rgba(61, 213, 152, 0.1);
+  color: #3dd598;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  border: 1px solid rgba(61, 213, 152, 0.2);
 }
 </style>
