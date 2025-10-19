@@ -18,7 +18,7 @@ export interface KospiQuote {
 
 class YahooFinanceService {
   private readonly KOSPI_SYMBOL = '%5EKS11' // ^KS11 URL encoded
-  private readonly BASE_URL = '/api/yahoo' // Vite proxy를 통해 호출
+  private readonly BASE_URL = 'http://localhost:8000/api/v1/yahoo' // 백엔드 프록시를 통해 호출
 
   // 코스피 현재 시세 가져오기
   async getKospiQuote(): Promise<KospiQuote | null> {

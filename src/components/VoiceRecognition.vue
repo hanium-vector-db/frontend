@@ -39,7 +39,18 @@
 
         <!-- LLM 응답 표시 영역 -->
         <div v-if="isProcessing || llmResponse" class="llm-response">
-          <div class="section-label">🤖 AI 응답:</div>
+          <div class="section-label">
+            🤖 AI 응답:
+            <button
+              v-if="llmResponse && !isProcessing"
+              class="tts-play-btn"
+              :class="{ 'playing': isSpeaking }"
+              @click="playCurrentResponse"
+            >
+              <i :class="isSpeaking ? 'fas fa-volume-up' : 'fas fa-volume-down'"></i>
+              {{ isSpeaking ? '음성 재생 중...' : '음성으로 듣기' }}
+            </button>
+          </div>
           <div class="response-content">
             <div v-if="isProcessing && !llmResponse" class="loading-dots">
               <span></span><span></span><span></span>
@@ -62,10 +73,12 @@
         </div>
 
         <!-- 중단 버튼 -->
-        <button class="stop-btn" @click="stopListening">
-          <i class="fas fa-stop"></i>
-          <span>음성 인식 중단</span>
-        </button>
+        <div class="button-group">
+          <button class="stop-btn" @click="stopListening">
+            <i class="fas fa-stop"></i>
+            <span>음성 인식 중단</span>
+          </button>
+        </div>
       </div>
     </div>
 
@@ -99,6 +112,8 @@ const recognizedText = ref('')
 const llmResponse = ref('')
 const isProcessing = ref(false)
 const waveHeights = ref<number[]>(Array(30).fill(15))
+const isSpeaking = ref(false)
+let currentAudio: HTMLAudioElement | null = null
 
 const API_BASE_URL = 'http://localhost:8000/api/v1'
 
@@ -192,9 +207,6 @@ const sendToLLM = async (text: string) => {
         }
       }
     }
-
-    // 음성으로 응답 재생 (선택사항)
-    // await playTTSResponse(fullResponse)
   } catch (error) {
     console.error('❌ LLM 요청 실패:', error)
     llmResponse.value = 'AI 응답을 가져오는데 실패했습니다.'
@@ -203,9 +215,20 @@ const sendToLLM = async (text: string) => {
   }
 }
 
-// TTS로 응답 재생 (선택사항)
+// TTS로 응답 재생
 const playTTSResponse = async (text: string) => {
   try {
+    if (!text || !text.trim()) {
+      console.warn('⚠️ TTS: 빈 텍스트')
+      return
+    }
+
+    console.log('🔊 TTS 요청:', text.substring(0, 50) + '...')
+    isSpeaking.value = true
+
+    // 기존 오디오 중지
+    stopAudio()
+
     const response = await axios.post(`${API_BASE_URL}/speech/text-to-speech`, {
       text: text,
       language: 'ko',
@@ -215,11 +238,45 @@ const playTTSResponse = async (text: string) => {
     })
 
     const audioUrl = URL.createObjectURL(response.data)
-    const audio = new Audio(audioUrl)
-    audio.play()
+    currentAudio = new Audio(audioUrl)
+
+    currentAudio.onended = () => {
+      isSpeaking.value = false
+      console.log('✅ TTS 재생 완료')
+    }
+
+    currentAudio.onerror = (e) => {
+      isSpeaking.value = false
+      console.error('TTS 재생 오류:', e)
+    }
+
+    await currentAudio.play()
+    console.log('🔊 TTS 재생 시작')
   } catch (error) {
-    console.error('TTS 재생 실패:', error)
+    isSpeaking.value = false
+    console.error('❌ TTS 재생 실패:', error)
   }
+}
+
+// 현재 응답을 음성으로 재생
+const playCurrentResponse = async () => {
+  if (isSpeaking.value) {
+    // 이미 재생 중이면 중지
+    stopAudio()
+  } else {
+    // 재생 시작
+    await playTTSResponse(llmResponse.value)
+  }
+}
+
+// 음성 재생 중지
+const stopAudio = () => {
+  if (currentAudio) {
+    currentAudio.pause()
+    currentAudio.currentTime = 0
+    currentAudio = null
+  }
+  isSpeaking.value = false
 }
 
 // 파형 바 스타일 생성
@@ -398,6 +455,9 @@ const stopListening = () => {
     // 오디오 분석 및 음성 인식 중지
     stopAudioAnalysis()
     stopSpeechRecognition()
+
+    // TTS 오디오 중지
+    stopAudio()
 
     // 상태 초기화
     recognizedText.value = ''
@@ -808,6 +868,14 @@ const parseResponseParts = (text: string) => {
   }
 }
 
+/* 버튼 그룹 */
+.button-group {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  width: 100%;
+}
+
 /* 중단 버튼 */
 .stop-btn {
   background: linear-gradient(135deg, #ef4444, #dc2626);
@@ -823,7 +891,7 @@ const parseResponseParts = (text: string) => {
   gap: 0.5rem;
   transition: all 0.2s;
   box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
-  margin-top: 0.5rem;
+  flex: 1;
 }
 
 .stop-btn:hover {
@@ -837,6 +905,73 @@ const parseResponseParts = (text: string) => {
 
 .stop-btn i {
   font-size: 16px;
+}
+
+/* 음성 중지 버튼 */
+.audio-stop-btn {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: white;
+  border: none;
+  padding: 0.75rem 1.75rem;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.2s;
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+  flex: 1;
+}
+
+.audio-stop-btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 6px 16px rgba(245, 158, 11, 0.4);
+}
+
+.audio-stop-btn:active {
+  transform: scale(0.98);
+}
+
+.audio-stop-btn i {
+  font-size: 16px;
+}
+
+/* TTS 재생 버튼 */
+.tts-play-btn {
+  margin-left: 0.5rem;
+  background: linear-gradient(135deg, #3dd598, #2db87c);
+  color: #0f1e25;
+  border: none;
+  padding: 0.4rem 0.8rem;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 6px rgba(61, 213, 152, 0.3);
+}
+
+.tts-play-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(61, 213, 152, 0.4);
+}
+
+.tts-play-btn:active {
+  transform: translateY(0);
+}
+
+.tts-play-btn.playing {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.tts-play-btn i {
+  font-size: 12px;
 }
 
 /* 하단 명령 원형 UI */

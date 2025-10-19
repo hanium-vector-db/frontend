@@ -82,7 +82,7 @@ export const useUserStore = defineStore('user', () => {
   const login = async (username: string, password: string) => {
     try {
       // 개발 환경 테스트용 임시 로그인 (백엔드 없이 테스트 가능)
-      const DEV_TEST_MODE = true // 백엔드 연동 시 false로 변경
+      const DEV_TEST_MODE = false // 백엔드 연동 완료
 
       if (DEV_TEST_MODE) {
         // 테스트 계정: test / test123

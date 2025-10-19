@@ -10,13 +10,11 @@
     <!-- 📊 코스피 실시간 차트 -->
     <KospiChart />
 
-    <!-- 📈 예상 상승 추이 -->
+    <!-- 📈 자산 상승 추이 -->
     <div class="card">
-      <div class="chart-title">예산 상승 추이</div>
+      <div class="chart-title">자산 상승 추이</div>
       <div class="line-chart">
-        <span class="tag">Bitcoin</span>
-        <span class="tag">Ethereum</span>
-        <div class="chart">📈 Line Chart Placeholder<br /><span class="price-label">54895</span></div>
+        <AssetTrendChart :financeItems="financeItems" />
       </div>
     </div>
 
@@ -146,6 +144,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import BottomNav from './BottomNav.vue'
 import KospiChart from './KospiChart.vue'
+import AssetTrendChart from './AssetTrendChart.vue'
 import financeService, { ASSET_RISK_TYPES } from '../services/financeService'
 
 const router = useRouter()
@@ -339,37 +338,12 @@ const goBack = () => {
 .chart-title {
   font-size: 14px;
   color: #ccc;
-  margin-bottom: 0.5rem;
+  margin-bottom: 1rem;
+  font-weight: 600;
 }
 
-.line-chart .tag {
-  background-color: #3b82f6;
-  color: white;
-  padding: 2px 8px;
-  margin-right: 8px;
-  border-radius: 8px;
-  font-size: 12px;
-}
-
-.chart {
-  margin-top: 8px;
-  background-color: #273a45;
-  height: 120px;
-  border-radius: 12px;
-  text-align: center;
-  padding-top: 30px;
-  position: relative;
-  color: #aaa;
-}
-.price-label {
-  position: absolute;
-  top: 8px;
-  left: 10px;
-  background-color: #3dd598;
-  color: #0f1e25;
-  padding: 2px 6px;
-  border-radius: 8px;
-  font-size: 12px;
+.line-chart {
+  padding: 0.5rem 0;
 }
 
 /* 자산 카드들 */

@@ -21,27 +21,27 @@ export const ASSET_RISK_TYPES = {
 class FinanceService {
   async listItems(category?: string): Promise<FinanceItemDto[]> {
     const params = category ? { category } : {}
-    const response = await apiClient.get<FinanceItemDto[]>('/api/finance/items', { params })
+    const response = await apiClient.get<FinanceItemDto[]>('/finance/items', { params })
     return response.data
   }
 
   async createItem(item: FinanceItemDto): Promise<FinanceItemDto> {
-    const response = await apiClient.post<FinanceItemDto>('/api/finance/items', item)
+    const response = await apiClient.post<FinanceItemDto>('/finance/items', item)
     return response.data
   }
 
   async getItem(id: number): Promise<FinanceItemDto> {
-    const response = await apiClient.get<FinanceItemDto>(`/api/finance/items/${id}`)
+    const response = await apiClient.get<FinanceItemDto>(`/finance/items/${id}`)
     return response.data
   }
 
   async updateItem(id: number, item: FinanceItemDto): Promise<FinanceItemDto> {
-    const response = await apiClient.put<FinanceItemDto>(`/api/finance/items/${id}`, item)
+    const response = await apiClient.put<FinanceItemDto>(`/finance/items/${id}`, item)
     return response.data
   }
 
   async deleteItem(id: number): Promise<void> {
-    await apiClient.delete(`/api/finance/items/${id}`)
+    await apiClient.delete(`/finance/items/${id}`)
   }
 }
 

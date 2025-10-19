@@ -65,6 +65,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useNewsStore } from '../stores/newsStore'
 import yahooFinanceService from '@/services/yahooFinanceService'
+import apiClient from '@/services/api'
 
 const router = useRouter()
 const newsStore = useNewsStore()
@@ -80,10 +81,11 @@ let kospiUpdateInterval = null
 // 키워드 기반 필터링된 뉴스 사용
 const newsHeadlines = computed(() => newsStore.filteredNews)
 
+// 개인화된 식단 추천 (LLM이 생성)
 const dietRecommendations = ref([
-  { meal: '아침', menu: '오트밀 + 바나나', calories: 320 },
-  { meal: '점심', menu: '현미밥 + 연어구이', calories: 580 },
-  { meal: '저녁', menu: '샐러드 + 닭가슴살', calories: 450 }
+  { meal: '아침', menu: '로딩 중...', calories: 0 },
+  { meal: '점심', menu: '로딩 중...', calories: 0 },
+  { meal: '저녁', menu: '로딩 중...', calories: 0 }
 ])
 
 const goToFinance = () => router.push('/finance')
@@ -119,12 +121,37 @@ const fetchKospiData = async () => {
   }
 }
 
+// 개인화된 식단 추천 가져오기
+const fetchDietRecommendations = async () => {
+  try {
+    const response = await apiClient.get('/diet/recommendations')
+
+    if (response.data.success && response.data.data) {
+      dietRecommendations.value = response.data.data
+      console.log('개인화된 식단 추천 로드 완료:', response.data.health_context)
+    } else {
+      console.warn('식단 추천 데이터가 없습니다')
+    }
+  } catch (error) {
+    console.error('식단 추천 가져오기 실패:', error)
+    // 오류 시 기본 식단 유지
+    dietRecommendations.value = [
+      { meal: '아침', menu: '오트밀 + 바나나', calories: 320 },
+      { meal: '점심', menu: '현미밥 + 연어구이', calories: 580 },
+      { meal: '저녁', menu: '샐러드 + 닭가슴살', calories: 450 }
+    ]
+  }
+}
+
 // 초기화: 백엔드에서 키워드와 뉴스 로드
 onMounted(async () => {
   await newsStore.initialize()
 
   // 코스피 데이터 즉시 가져오기
   await fetchKospiData()
+
+  // 개인화된 식단 추천 가져오기
+  await fetchDietRecommendations()
 
   // 60초마다 코스피 데이터 업데이트
   kospiUpdateInterval = setInterval(async () => {
